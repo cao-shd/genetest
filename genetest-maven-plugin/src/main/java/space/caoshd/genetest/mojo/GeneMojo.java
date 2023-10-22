@@ -15,7 +15,7 @@ import java.util.List;
 @Mojo(name = "gene")
 public class GeneMojo extends AbstractMojo {
 
-    public static final String TEST_FILENAME_SUFFIX = "Test";
+    public static final String DEFAULT_TEST_FILENAME_SUFFIX = "Test";
 
     private Log log;
 
@@ -26,6 +26,9 @@ public class GeneMojo extends AbstractMojo {
     private String mock;
     @Parameter(property = "cover", defaultValue = "false")
     private boolean cover;
+
+    @Parameter(property = "suffix", defaultValue = DEFAULT_TEST_FILENAME_SUFFIX)
+    private String suffix;
 
     @Parameter(property = "includes")
     private String includes;
@@ -42,9 +45,11 @@ public class GeneMojo extends AbstractMojo {
 
         String srcRootPath = project.getCompileSourceRoots().get(0).toString();
         String testRootPath = project.getTestCompileSourceRoots().get(0).toString();
-        FileUtils.walkFile(new File(srcRootPath), "java", (srcFile) -> {
-            generateTestFile(srcFile, srcRootPath, testRootPath);
-        });
+        FileUtils.walkFile(
+            new File(srcRootPath),
+            "java",
+            srcFile -> generateTestFile(srcFile, srcRootPath, testRootPath)
+        );
     }
 
     private void generateTestFile(File srcFile, String srcRootPath, String testRootPath) {
@@ -99,17 +104,17 @@ public class GeneMojo extends AbstractMojo {
     }
 
 
-    private static String calcClassFullName(File srcFile, String srcRootPath) {
+    private String calcClassFullName(File srcFile, String srcRootPath) {
         String srcRootTemp = srcRootPath.replaceAll("\\\\", ".") + ".";
         String srcFilePath = srcFile.getAbsolutePath();
         String srcPackageTemp = srcFilePath.replaceAll("\\\\", ".");
         return srcPackageTemp.replaceAll(srcRootTemp, "");
     }
 
-    private static File calcTestFile(File srcFile, String srcRootPath, String testRootPath) {
+    private File calcTestFile(File srcFile, String srcRootPath, String testRootPath) {
         String srcFileName = srcFile.getName();
         List<String> srcFileNameSplit = StringUtils.split(srcFileName, "\\.");
-        String testFileName = srcFileNameSplit.get(0) + TEST_FILENAME_SUFFIX + "." + srcFileNameSplit.get(1);
+        String testFileName = srcFileNameSplit.get(0) + suffix + "." + srcFileNameSplit.get(1);
         String srcFilePath = srcFile.getAbsolutePath();
         String testFilePath = srcFilePath.replace(srcRootPath, testRootPath).replace(srcFileName, testFileName);
         return new File(testFilePath);

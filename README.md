@@ -51,6 +51,9 @@ mvn genetest:gene -Dmock=mockito
 # 生成工程源码的全部测试代码 如果存在 则替换原有文件 重新生成
 mvn genetest:gene -Dcover=true
 
+# 生成工程源码的全部测试代码 指定生成文件名后缀
+mvn genetest:gene -Dsuffix=AutoTest
+
 # 生成工程源码的指定包下面的测试代码 如果存在 则不生成
 mvn genetest:gene -Dincludes=space.caoshd.genetest.model
 
