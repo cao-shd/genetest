@@ -28,6 +28,7 @@ public class GeneMojo extends AbstractMojo {
 
     @Parameter(property = "mock")
     private String mock;
+
     @Parameter(property = "mode", defaultValue = MODE_APPEND)
     private String mode;
 
@@ -43,10 +44,11 @@ public class GeneMojo extends AbstractMojo {
     @Override
     public void execute() {
         log = getLog();
-        log.info("mvn param mode: " + mode);
-        log.info("mvn param includes: " + includes);
-        log.info("mvn param excludes: " + excludes);
+        infoParams();
+        generate();
+    }
 
+    private void generate() {
         String srcRootPath = project.getCompileSourceRoots().get(0).toString();
         String testRootPath = project.getTestCompileSourceRoots().get(0).toString();
         FileUtils.walkFile(
@@ -56,10 +58,17 @@ public class GeneMojo extends AbstractMojo {
         );
     }
 
+    private void infoParams() {
+        log.info("mvn param mock: " + mock);
+        log.info("mvn param mode: " + mode);
+        log.info("mvn param suffix: " + suffix);
+        log.info("mvn param includes: " + includes);
+        log.info("mvn param excludes: " + excludes);
+    }
+
     private void generateTestFile(File srcFile, String srcRootPath, String testRootPath) {
         String srcClassFullName = calcClassFullName(srcFile, srcRootPath);
         if (checkGenerate(srcClassFullName)) {
-            // generate test file
             File testFile = calcTestFile(srcFile, srcRootPath, testRootPath);
             generate(srcFile, testFile);
         }
@@ -67,15 +76,12 @@ public class GeneMojo extends AbstractMojo {
 
     private boolean checkGenerate(String srcClassFullName) {
         if (StringUtils.isBlank(includes) && StringUtils.isBlank(excludes)) {
-            // when includes and excludes param all no set
             return true;
         }
 
         if (!StringUtils.isBlank(includes)) {
-            // when includes param set
             if (StringUtils.includeStartsWith(includes, srcClassFullName)) {
                 if (!StringUtils.isBlank(excludes)) {
-                    // when excludes param set
                     return !StringUtils.includeStartsWith(excludes, srcClassFullName);
                 }
                 return true;
@@ -85,7 +91,6 @@ public class GeneMojo extends AbstractMojo {
         }
 
         if (!StringUtils.isBlank(excludes)) {
-            // when excludes param set
             return !StringUtils.includeStartsWith(excludes, srcClassFullName);
         }
 
@@ -95,19 +100,18 @@ public class GeneMojo extends AbstractMojo {
     private void generate(File srcFile, File testFile) {
         if (testFile.exists()) {
             if (MODE_OVERWRITE.equals(mode)) {
-                log.info("recreate file: " + testFile);
-                new GeneTool(mock, srcFile, testFile, log).generate();
+                log.info("overwrite test file: " + testFile);
+                new GeneTool(mock, srcFile, testFile, false, log).generate();
             } else {
-                log.info("file already exist, append test: " + testFile);
-                log.info("TODO...");
+                log.info("append test file: " + testFile);
+//                new GeneTool(mock, srcFile, testFile, true, log).generate();
             }
         } else {
             FileUtils.makeParentDir(testFile);
-            log.info("create file: " + testFile);
-            new GeneTool(mock, srcFile, testFile, log).generate();
+            log.info("create test file: " + testFile);
+            new GeneTool(mock, srcFile, testFile, false, log).generate();
         }
     }
-
 
     private String calcClassFullName(File srcFile, String srcRootPath) {
         String srcRootTemp = srcRootPath.replaceAll("\\\\", ".") + ".";

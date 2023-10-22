@@ -48,11 +48,16 @@ import java.util.StringJoiner;
 public class GeneTool {
 
     public final static String MOCKITO = "mockito";
+
     private final Log log;
+
     private final File srcFile;
+
     private final File testFile;
 
     private final String mock;
+
+    private final boolean append;
 
     private final Map<String, Integer> methodNameTimes = new HashMap<>();
 
@@ -62,11 +67,12 @@ public class GeneTool {
 
     private boolean voidMethodExists = false;
 
-    public GeneTool(String mock, File srcFile, File testFile, Log log) {
+    public GeneTool(String mock, File srcFile, File testFile, boolean append, Log log) {
         this.mock = mock;
-        this.log = log;
         this.srcFile = srcFile;
         this.testFile = testFile;
+        this.append = append;
+        this.log = log;
     }
 
     public void generate() {
@@ -75,26 +81,28 @@ public class GeneTool {
     }
 
     private CompilationUnit createTestUnit() {
-        // create unit
+        // parse src unit
         CompilationUnit srcUnit = AstUtils.unit(srcFile);
-        CompilationUnit testUnit = new CompilationUnit();
 
-        // create package
+        // create test unit
+        CompilationUnit testUnit = calcTestUnit();
+
+        // create test class
         ClassOrInterfaceDeclaration testClass = createTestClass(srcUnit, testUnit);
 
         // create be tested class field
         createBeTestClassField(testClass);
 
-        // create inject field
+        // create test class inject field
         createInjectedField(srcUnit, testClass);
 
-        // create setUp() method
+        // create setUp method
         createSetUpMethod(srcUnit, testClass);
 
-        // create tearDown() method
+        // create tearDown method
         createTearDownMethod(testClass);
 
-        // create test_xxx() method
+        // create test_xxx_branch_xxx method
         createTestMethod(srcUnit, testClass);
 
         // create reflectField field
@@ -107,11 +115,20 @@ public class GeneTool {
             createReflectMethod(testUnit, testClass);
         }
 
+        // create stackTrace method
         if (voidMethodExists) {
             createStackTrace(testUnit, testClass);
         }
 
         return testUnit;
+    }
+
+    private CompilationUnit calcTestUnit() {
+        if (append) {
+            return AstUtils.unit(testFile);
+        } else {
+            return new CompilationUnit();
+        }
     }
 
     private ClassOrInterfaceDeclaration createTestClass(CompilationUnit srcUnit, CompilationUnit testUnit) {
@@ -129,9 +146,13 @@ public class GeneTool {
             // add import
             String importName = "org.mockito.junit.MockitoJUnitRunner";
             addImport(testUnit, importName);
-            // set annotation
-            NodeList<MemberValuePair> memberValues = AstUtils.createMemberValues("value", "MockitoJUnitRunner.class");
-            AnnotationExpr annotation = AstUtils.createAnnotationExpr(clazz, "org.junit.runner.RunWith", memberValues);
+
+            // add annotation
+            String name = "value";
+            String value = "MockitoJUnitRunner.class";
+            NodeList<MemberValuePair> memberValues = AstUtils.createMemberValues(name, value);
+            String annotationName = "org.junit.runner.RunWith";
+            AnnotationExpr annotation = AstUtils.createAnnotationExpr(clazz, annotationName, memberValues);
             addAnnotation(clazz, annotation);
         }
 
@@ -140,63 +161,84 @@ public class GeneTool {
         return clazz;
     }
 
-
     private void createBeTestClassField(ClassOrInterfaceDeclaration testClass) {
+        // create field
         String className = calcClassName(srcFile);
         String fieldName = NameUtils.toCamelCase(className);
         ClassOrInterfaceType fieldType = new ClassOrInterfaceType(null, className);
         FieldDeclaration field = testClass.addPublicField(fieldType, fieldName);
+
         if (MOCKITO.equals(mock)) {
-            // add @InjectMocks annotation to be tested class field
+            // add annotation
             String annotationName = "org.mockito.InjectMocks";
             addAnnotation(testClass, field, annotationName);
         } else {
+            // set default value
             VariableDeclarator variable = AstUtils.createVariableDeclarator(fieldType, fieldName);
             field.setVariable(0, variable);
         }
+
         info("create be test field: " + fieldName);
         debug(field);
     }
 
     private void createInjectedField(CompilationUnit srcUnit, ClassOrInterfaceDeclaration testClass) {
         // new
-        srcUnit.findAll(FieldDeclaration.class).forEach(srcField -> AstUtils.findClassOrInterfaceType(srcField).filter(field -> !AstUtils.isInjectType(field) || !MOCKITO.equals(mock)).ifPresent(fieldType -> {
-            // create field
-            String fieldName = AstUtils.name(AstUtils.getVariableDeclarator(srcField));
-            FieldDeclaration field = createInjectedField(srcUnit, testClass, fieldType, fieldName);
+        srcUnit.findAll(FieldDeclaration.class)
+            .forEach(srcField -> AstUtils.findClassOrInterfaceType(srcField)
+                .filter(field -> !AstUtils.isInjectType(field) || !MOCKITO.equals(mock))
+                .ifPresent(
+                    fieldType -> {
+                        // create field
+                        String fieldName = AstUtils.name(AstUtils.getVariableDeclarator(srcField));
+                        FieldDeclaration field = createInjectedField(srcUnit, testClass, fieldType, fieldName);
 
-            // set default value
-            VariableDeclarator variable = AstUtils.createVariableDeclarator(fieldType, fieldName);
-            field.setVariable(0, variable);
-            debug(field);
-        }));
+                        // set default value
+                        VariableDeclarator variable = AstUtils.createVariableDeclarator(fieldType, fieldName);
+                        field.setVariable(0, variable);
+                        debug(field);
+                    }
+                )
+            );
 
         // mockito mock
-        srcUnit.findAll(FieldDeclaration.class).forEach(srcField -> AstUtils.findClassOrInterfaceType(srcField).filter(srcFieldType -> AstUtils.isInjectType(srcFieldType) && MOCKITO.equals(mock)).ifPresent(fieldType -> {
-            // create field
-            String fieldName = AstUtils.name(AstUtils.getVariableDeclarator(srcField));
-            FieldDeclaration field = createInjectedField(srcUnit, testClass, fieldType, fieldName);
+        srcUnit.findAll(FieldDeclaration.class)
+            .forEach(srcField -> AstUtils.findClassOrInterfaceType(srcField)
+                .filter(srcFieldType -> AstUtils.isInjectType(srcFieldType) && MOCKITO.equals(mock))
+                .ifPresent(
+                    fieldType -> {
+                        // create field
+                        String fieldName = AstUtils.name(AstUtils.getVariableDeclarator(srcField));
+                        FieldDeclaration field = createInjectedField(srcUnit, testClass, fieldType, fieldName);
 
-            // add annotation @Mock
-            String annotationName = "org.mockito.Mock";
-            addAnnotation(testClass, field, annotationName);
+                        // add annotation @Mock
+                        String annotationName = "org.mockito.Mock";
+                        addAnnotation(testClass, field, annotationName);
 
-            debug(field);
-        }));
+                        debug(field);
+                    }
+                )
+            );
     }
 
-    private FieldDeclaration createInjectedField(CompilationUnit srcUnit, ClassOrInterfaceDeclaration testClass, ClassOrInterfaceType fieldType, String fieldName) {
+    private FieldDeclaration createInjectedField(
+        CompilationUnit srcUnit,
+        ClassOrInterfaceDeclaration testClass,
+        ClassOrInterfaceType fieldType,
+        String fieldName
+    ) {
         // import package
-        AstUtils.findImportDeclarationByClassType(srcUnit, fieldType).ifPresent(declaration -> testClass.findCompilationUnit().ifPresent(unit -> addImport(unit, declaration.getNameAsString())));
+        AstUtils.findImportDeclarationByClassType(srcUnit, fieldType)
+            .ifPresent(declaration -> testClass.findCompilationUnit()
+                .ifPresent(unit -> addImport(unit, declaration.getNameAsString())));
         // log
         info("create injected field: " + fieldName);
         // create variable
         return testClass.addPublicField(fieldType, fieldName);
     }
 
-
     private void createSetUpMethod(CompilationUnit srcUnit, ClassOrInterfaceDeclaration testClass) {
-        // create method method
+        // create setUp method
         String methodName = "setUp";
         MethodDeclaration method = createMethod(testClass, methodName);
 
@@ -208,30 +250,38 @@ public class GeneTool {
         BlockStmt blockStmt = new BlockStmt();
 
         // set public field
-        srcUnit.findAll(FieldDeclaration.class).stream().filter(FieldDeclaration::isPublic).forEach(srcFieldDeclaration -> {
-            // add setup content
-            String classFieldName = NameUtils.toCamelCase(AstUtils.className(srcUnit));
-            String fieldName = AstUtils.name(AstUtils.getVariableDeclarator(srcFieldDeclaration));
-            String field = classFieldName + "." + fieldName + " = " + fieldName + ";";
-            Statement fieldStmt = StaticJavaParser.parseStatement(field);
-            blockStmt.addStatement(fieldStmt);
-        });
+        srcUnit.findAll(FieldDeclaration.class).stream()
+            .filter(FieldDeclaration::isPublic)
+            .forEach(
+                srcField -> {
+                    // add setup content
+                    String classFieldName = NameUtils.toCamelCase(AstUtils.className(srcUnit));
+                    String fieldName = AstUtils.name(AstUtils.getVariableDeclarator(srcField));
+                    String field = classFieldName + "." + fieldName + " = " + fieldName + ";";
+                    Statement fieldStmt = StaticJavaParser.parseStatement(field);
+                    blockStmt.addStatement(fieldStmt);
+                }
+            );
 
         // set private file
-        srcUnit.findAll(FieldDeclaration.class).stream().filter(fieldDeclaration -> !fieldDeclaration.isPublic()).forEach(srcFieldDeclaration -> {
-            privateFieldExists = true;
-            // add setup content
-            String mockFieldName = AstUtils.name(AstUtils.getVariableDeclarator(srcFieldDeclaration));
-            NameExpr fieldName = new NameExpr("\"" + mockFieldName + "\"");
-            NameExpr fieldValue = new NameExpr(mockFieldName);
-            MethodCallExpr methodCallExpr = new MethodCallExpr("reflectField", fieldName, fieldValue);
-            blockStmt.addStatement(methodCallExpr);
-        });
+        srcUnit.findAll(FieldDeclaration.class).stream()
+            .filter(fieldDeclaration -> !fieldDeclaration.isPublic())
+            .forEach(
+                srcField -> {
+                    privateFieldExists = true;
+                    // add setup content
+                    String mockFieldName = AstUtils.name(AstUtils.getVariableDeclarator(srcField));
+                    NameExpr fieldName = new NameExpr("\"" + mockFieldName + "\"");
+                    NameExpr fieldValue = new NameExpr(mockFieldName);
+                    MethodCallExpr methodCallExpr = new MethodCallExpr("reflectField", fieldName, fieldValue);
+                    blockStmt.addStatement(methodCallExpr);
+                }
+            );
 
         method.setBody(blockStmt);
+
         debug(method);
     }
-
 
     private void createTearDownMethod(ClassOrInterfaceDeclaration testClass) {
         // create method tearDown
@@ -253,7 +303,10 @@ public class GeneTool {
                     createTestMethod(testClass, srcMethod, "");
                     return;
                 }
-                if (childNodes.size() == 1 && (!(childNodes.get(0) instanceof IfStmt) && !(childNodes.get(0) instanceof TryStmt))) {
+                if (
+                    childNodes.size() == 1
+                        && (!(childNodes.get(0) instanceof IfStmt) && !(childNodes.get(0) instanceof TryStmt))
+                ) {
                     createTestMethod(testClass, srcMethod, "");
                     return;
                 }
@@ -264,7 +317,13 @@ public class GeneTool {
         }
     }
 
-    private int createTestMethod(ClassOrInterfaceDeclaration testClass, MethodDeclaration srcMethod, String methodNameSuffix, Node node, int branchCnt) {
+    private int createTestMethod(
+        ClassOrInterfaceDeclaration testClass,
+        MethodDeclaration srcMethod,
+        String methodNameSuffix,
+        Node node,
+        int branchCnt
+    ) {
         // if else
         if (node instanceof IfStmt) {
             branchCnt++;
@@ -360,7 +419,11 @@ public class GeneTool {
         return branchCnt;
     }
 
-    private void createTestMethod(ClassOrInterfaceDeclaration testClass, MethodDeclaration srcMethod, String methodNameSuffix) {
+    private void createTestMethod(
+        ClassOrInterfaceDeclaration testClass,
+        MethodDeclaration srcMethod,
+        String methodNameSuffix
+    ) {
         // create method
         String methodName = createTestMethodName(srcMethod.getNameAsString(), methodNameSuffix);
         MethodDeclaration method = createMethod(testClass, methodName);
@@ -466,7 +529,11 @@ public class GeneTool {
         testContent.addStatement(assertStmt);
     }
 
-    private void createGivenBlock(ClassOrInterfaceDeclaration testClass, MethodDeclaration srcMethod, BlockStmt testContent) {
+    private void createGivenBlock(
+        ClassOrInterfaceDeclaration testClass,
+        MethodDeclaration srcMethod,
+        BlockStmt testContent
+    ) {
         CompilationUnit testUnit = AstUtils.unit(testClass);
         NodeList<Parameter> parameters = srcMethod.getParameters();
         for (int i = 0, parametersSize = parameters.size(); i < parametersSize; i++) {
@@ -536,7 +603,6 @@ public class GeneTool {
         whenStmt.setLineComment(" when");
         testContent.addStatement(whenStmt);
     }
-
 
     private String createCallReflectWhenMethodTypes(NodeList<Parameter> parameters) {
         String types = typeJoinStr(parameters);
@@ -665,7 +731,11 @@ public class GeneTool {
         debug("import " + importName + ";");
     }
 
-    private void addAnnotation(ClassOrInterfaceDeclaration clazz, NodeWithAnnotations<? extends Node> node, String annotationName) {
+    private void addAnnotation(
+        ClassOrInterfaceDeclaration clazz,
+        NodeWithAnnotations<? extends Node> node,
+        String annotationName
+    ) {
         AnnotationExpr annotation = AstUtils.createAnnotationExpr(clazz, annotationName);
         addAnnotation(node, annotation);
     }
@@ -698,7 +768,15 @@ public class GeneTool {
 
     private String createReflectField(String className) {
         String fieldName = NameUtils.toCamelCase(className);
-        return "private void reflectField(String fieldName, Object fieldValue) {" + "    try {" + "        Field field = " + className + ".class.getDeclaredField(fieldName);" + "        field.setAccessible(true);" + "        field.set(" + fieldName + ", fieldValue);" + "    } catch (Exception e) {" + "        throw new RuntimeException(e);" + "    }" + "}";
+        return "private void reflectField(String fieldName, Object fieldValue) {"
+            + "    try {"
+            + "        Field field = " + className + ".class.getDeclaredField(fieldName);"
+            + "        field.setAccessible(true);"
+            + "        field.set(" + fieldName + ", fieldValue);"
+            + "    } catch (Exception e) {"
+            + "        throw new RuntimeException(e);"
+            + "    }"
+            + "}";
     }
 
     private void createReflectMethod(CompilationUnit unit, ClassOrInterfaceDeclaration clazz) {
@@ -718,7 +796,15 @@ public class GeneTool {
 
     private String createReflectMethod(String className) {
         String fieldName = NameUtils.toCamelCase(className);
-        return "private Object reflectMethod(String methodName, Class<?>[] types, Object[] params) {" + "    try {" + "        Method method = " + className + ".class.getDeclaredMethod(methodName, types);" + "        method.setAccessible(true);" + "        return method.invoke(" + fieldName + ", params);" + "    } catch (Exception e) {" + "        throw new RuntimeException(e);" + "    }" + "}";
+        return "private Object reflectMethod(String methodName, Class<?>[] types, Object[] params) {"
+            + "    try {"
+            + "        Method method = " + className + ".class.getDeclaredMethod(methodName, types);"
+            + "        method.setAccessible(true);"
+            + "        return method.invoke(" + fieldName + ", params);"
+            + "    } catch (Exception e) {"
+            + "        throw new RuntimeException(e);"
+            + "    }"
+            + "}";
     }
 
     private void createStackTrace(CompilationUnit unit, ClassOrInterfaceDeclaration clazz) {
@@ -738,7 +824,11 @@ public class GeneTool {
     }
 
     private String createStackTrace() {
-        return "private String stackTrace(Exception e) {" + "        return Arrays.stream(e.getStackTrace()).map(StackTraceElement::toString).collect(Collectors.joining(\"\\n\\t\"));" + "    }";
+        return "private String stackTrace(Exception e) {"
+            + "    return Arrays.stream(e.getStackTrace())"
+            + "        .map(StackTraceElement::toString)"
+            + "        .collect(Collectors.joining(\"\\n\\t\"));"
+            + "}";
     }
 
     private void info(String info) {
