@@ -49,7 +49,7 @@ mvn genetest:gene
 mvn genetest:gene -Dmock=mockito
 
 # 生成工程源码的全部测试代码 如果存在 则替换原有文件 重新生成
-mvn genetest:gene -Dcover=true
+mvn genetest:gene -Dmode=overwrite
 
 # 生成工程源码的全部测试代码 指定生成文件名后缀
 mvn genetest:gene -Dsuffix=AutoTest
@@ -64,4 +64,6 @@ mvn genetest:gene -Dincludes=space.caoshd.genetest.model.ParseModel
 mvn genetest:gene -Dincludes=space.caoshd.genetest.model -Dexcludes=space.caoshd.genetest.model.ParseModel2
 ```
 ## 优化
-* 自动生成 mock 语句
+* 测试文件存在时 解析测试文件 增量添加测试分支
+* 增量添加测试分支时 可指定测试方法名称
+* 使用 mockito 时 可以自动生成 mock 语句

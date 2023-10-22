@@ -17,6 +17,10 @@ public class GeneMojo extends AbstractMojo {
 
     public static final String DEFAULT_TEST_FILENAME_SUFFIX = "Test";
 
+    public static final String MODE_APPEND = "append";
+
+    public static final String MODE_OVERWRITE = "overwrite";
+
     private Log log;
 
     @Parameter(defaultValue = "${project}")
@@ -24,8 +28,8 @@ public class GeneMojo extends AbstractMojo {
 
     @Parameter(property = "mock")
     private String mock;
-    @Parameter(property = "cover", defaultValue = "false")
-    private boolean cover;
+    @Parameter(property = "mode", defaultValue = MODE_APPEND)
+    private String mode;
 
     @Parameter(property = "suffix", defaultValue = DEFAULT_TEST_FILENAME_SUFFIX)
     private String suffix;
@@ -39,7 +43,7 @@ public class GeneMojo extends AbstractMojo {
     @Override
     public void execute() {
         log = getLog();
-        log.info("mvn param cover: " + cover);
+        log.info("mvn param mode: " + mode);
         log.info("mvn param includes: " + includes);
         log.info("mvn param excludes: " + excludes);
 
@@ -90,11 +94,12 @@ public class GeneMojo extends AbstractMojo {
 
     private void generate(File srcFile, File testFile) {
         if (testFile.exists()) {
-            if (cover) {
+            if (MODE_OVERWRITE.equals(mode)) {
                 log.info("recreate file: " + testFile);
                 new GeneTool(mock, srcFile, testFile, log).generate();
             } else {
-                log.warn("file already exist: " + testFile);
+                log.info("file already exist, append test: " + testFile);
+                log.info("TODO...");
             }
         } else {
             FileUtils.makeParentDir(testFile);
