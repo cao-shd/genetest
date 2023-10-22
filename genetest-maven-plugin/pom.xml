@@ -8,7 +8,7 @@
 
     <packaging>maven-plugin</packaging>
 
-    <groupId>space.caoshd</groupId>
+    <groupId>github.plugin</groupId>
     <artifactId>genetest-maven-plugin</artifactId>
     <version>1.0</version>
 

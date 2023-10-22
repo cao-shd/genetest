@@ -28,7 +28,7 @@ mvn install
 ```xml
 <!-- project > build > plugins -->
 <plugin>
-    <groupId>space.caoshd</groupId>
+    <groupId>github.plugin</groupId>
     <artifactId>genetest-maven-plugin</artifactId>
     <version>1.0</version>
 </plugin>
@@ -55,13 +55,13 @@ mvn genetest:gene -Dmode=overwrite
 mvn genetest:gene -Dsuffix=AutoTest
 
 # 生成工程源码的指定包下面的测试代码 如果存在 则追加测试类到已有文件
-mvn genetest:gene -Dincludes=space.caoshd.genetest.model
+mvn genetest:gene -Dincludes=github.plugin.genetest.model
 
 # 生成工程源码的包含指定类的测试代码 如果存在 则追加测试类到已有文件
-mvn genetest:gene -Dincludes=space.caoshd.genetest.model.ParseModel
+mvn genetest:gene -Dincludes=model.github.plugin.genetest.ParseModel
 
 # 生成工程源码的指定包内并且排除指定类的测试代码 如果存在 则追加测试类到已有文件
-mvn genetest:gene -Dincludes=space.caoshd.genetest.model -Dexcludes=space.caoshd.genetest.model.ParseModel2
+mvn genetest:gene -Dincludes=github.plugin.genetest.model -Dexcludes=github.plugin.genetest.ParseModel2
 ```
 ## 优化
 * 测试文件存在时 解析测试文件 增量添加测试分支

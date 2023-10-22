@@ -9,7 +9,7 @@
         <relativePath/>
     </parent>
 
-    <groupId>space.caoshd</groupId>
+    <groupId>github.plugin</groupId>
     <artifactId>genetest-sample</artifactId>
     <version>1.0</version>
     <packaging>jar</packaging>
@@ -38,7 +38,7 @@
     <build>
         <plugins>
             <plugin>
-                <groupId>space.caoshd</groupId>
+                <groupId>github.plugin</groupId>
                 <artifactId>genetest-maven-plugin</artifactId>
                 <version>1.0</version>
             </plugin>
