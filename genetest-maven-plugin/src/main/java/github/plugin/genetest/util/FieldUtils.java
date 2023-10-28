@@ -2,7 +2,7 @@ package github.plugin.genetest.util;
 
 public class FieldUtils {
 
-    public static String defaultValue(String typeName, boolean genericExists) {
+    public static String createDefaultValue(String typeName, boolean genericExists) {
         switch (typeName) {
             case "Integer":
                 return "0";

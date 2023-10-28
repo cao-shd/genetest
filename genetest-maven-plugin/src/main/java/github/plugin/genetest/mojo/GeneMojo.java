@@ -51,7 +51,7 @@ public class GeneMojo extends AbstractMojo {
     private void generate() {
         String srcRootPath = project.getCompileSourceRoots().get(0).toString();
         String testRootPath = project.getTestCompileSourceRoots().get(0).toString();
-        FileUtils.walkFile(
+        FileUtils.walk(
             new File(srcRootPath),
             "java",
             srcFile -> generateTestFile(srcFile, srcRootPath, testRootPath)
@@ -107,7 +107,7 @@ public class GeneMojo extends AbstractMojo {
                 new GeneTool(mock, srcFile, testFile, true, log).generate();
             }
         } else {
-            FileUtils.makeParentDir(testFile);
+            FileUtils.createParentDir(testFile);
             log.info("create test file: " + testFile);
             new GeneTool(mock, srcFile, testFile, false, log).generate();
         }

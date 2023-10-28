@@ -16,9 +16,13 @@ import com.github.javaparser.ast.expr.MemberValuePair;
 import com.github.javaparser.ast.expr.Name;
 import com.github.javaparser.ast.expr.NameExpr;
 import com.github.javaparser.ast.expr.NormalAnnotationExpr;
+import com.github.javaparser.ast.expr.SimpleName;
+import com.github.javaparser.ast.expr.VariableDeclarationExpr;
 import com.github.javaparser.ast.nodeTypes.NodeWithAnnotations;
 import com.github.javaparser.ast.nodeTypes.NodeWithName;
 import com.github.javaparser.ast.nodeTypes.NodeWithSimpleName;
+import com.github.javaparser.ast.stmt.ExpressionStmt;
+import com.github.javaparser.ast.type.ArrayType;
 import com.github.javaparser.ast.type.ClassOrInterfaceType;
 import com.github.javaparser.ast.type.Type;
 
@@ -33,7 +37,7 @@ import java.util.stream.Collectors;
 
 public class AstUtils {
 
-    public static CompilationUnit unit(File file) {
+    public static CompilationUnit getUnit(File file) {
         try {
             return StaticJavaParser.parse(file);
         } catch (FileNotFoundException e) {
@@ -41,12 +45,71 @@ public class AstUtils {
         }
     }
 
-    public static CompilationUnit unit(ClassOrInterfaceDeclaration classDeclaration) {
-        return classDeclaration.findCompilationUnit().orElseThrow(() -> new RuntimeException("test class unit not exist."));
+    public static CompilationUnit getUnit(ClassOrInterfaceDeclaration clazz) {
+        return clazz.findCompilationUnit()
+            .orElseThrow(() -> new RuntimeException("test class unit not exist."));
     }
 
-    public static CompilationUnit unit(MethodDeclaration methodDeclaration) {
-        return methodDeclaration.findCompilationUnit().orElseThrow(() -> new RuntimeException("src method unit not exist."));
+    public static CompilationUnit getUnit(MethodDeclaration method) {
+        return method.findCompilationUnit()
+            .orElseThrow(() -> new RuntimeException("src method unit not exist."));
+    }
+
+    public static PackageDeclaration getPackageDeclaration(CompilationUnit unit) {
+        return unit.getPackageDeclaration()
+            .orElseThrow(() -> new RuntimeException("package not exists."));
+    }
+
+    public static String getPackageName(CompilationUnit unit) {
+        return getName(getPackageDeclaration(unit));
+    }
+
+    public static VariableDeclarator getVariableDeclarator(FieldDeclaration field) {
+        return field.findAll(VariableDeclarator.class).get(0);
+    }
+
+    public static String getClassName(CompilationUnit unit) {
+        return unit.getPrimaryTypeName()
+            .orElseThrow(() -> new RuntimeException("class name not exists."));
+    }
+
+
+    public static String getName(NodeWithName<? extends Node> type) {
+        return type.getName().asString();
+    }
+
+    public static String getName(NodeWithSimpleName<? extends Node> type) {
+        return type.getName().asString();
+    }
+
+    public static String getType(Type type) {
+        return StringUtils.splitFirst(type.toString(), "<");
+    }
+
+    public static Optional<ImportDeclaration> findImportDeclaration(
+        CompilationUnit unit,
+        String classTypeName
+    ) {
+        return unit.getImports()
+            .stream()
+            .filter(importDeclaration -> {
+                String importPackageName = getName(importDeclaration);
+                String importClassTypeName = StringUtils.splitLast(importPackageName, "\\.");
+                return classTypeName.equals(importClassTypeName);
+            })
+            .findFirst();
+    }
+
+    public static Optional<ClassOrInterfaceType> findClassOrInterfaceType(FieldDeclaration field) {
+        if (field.getElementType().isClassOrInterfaceType()) {
+            return Optional.of(field.getElementType().asClassOrInterfaceType());
+        }
+
+        if (field.getElementType().isPrimitiveType()) {
+            return Optional.of(field.getElementType().asPrimitiveType().toBoxedType());
+        }
+
+        return Optional.empty();
     }
 
     public static void addImport(CompilationUnit unit, String importName) {
@@ -57,14 +120,6 @@ public class AstUtils {
         node.addAnnotation(annotation);
     }
 
-    public static PackageDeclaration packageDeclaration(CompilationUnit unit) {
-        return unit.getPackageDeclaration().orElseThrow(() -> new RuntimeException("package not exists."));
-    }
-
-    public static String className(CompilationUnit unit) {
-        return unit.getPrimaryTypeName().orElseThrow(() -> new RuntimeException("class name not exists."));
-    }
-
     public static NodeList<MemberValuePair> createMemberValues(List<MemberValuePair> memberValuePairs) {
         NodeList<MemberValuePair> result = new NodeList<>();
         result.addAll(memberValuePairs);
@@ -72,7 +127,14 @@ public class AstUtils {
     }
 
     public static NodeList<MemberValuePair> createMemberValues(Map<String, String> nameValuePairs) {
-        List<MemberValuePair> memberValuePairs = nameValuePairs.entrySet().stream().map((e) -> new MemberValuePair(e.getKey(), new NameExpr(e.getValue()))).collect(Collectors.toList());
+        List<MemberValuePair> memberValuePairs = nameValuePairs.entrySet()
+            .stream()
+            .map((entry) -> {
+                String name = entry.getKey();
+                String value = entry.getValue();
+                return new MemberValuePair(name, new NameExpr(value));
+            })
+            .collect(Collectors.toList());
         return createMemberValues(memberValuePairs);
     }
 
@@ -82,61 +144,49 @@ public class AstUtils {
         return createMemberValues(nameValuePairs);
     }
 
-    public static AnnotationExpr createAnnotationExpr(ClassOrInterfaceDeclaration classDeclaration, String className, NodeList<MemberValuePair> memberValuePairs) {
-        AstUtils.unit(classDeclaration).addImport(className);
-        return new NormalAnnotationExpr(new Name(StringUtils.splitLast(className, "\\.")), memberValuePairs);
+    public static AnnotationExpr createAnnotationExpr(
+        ClassOrInterfaceDeclaration classDeclaration,
+        String annotationFullClassName,
+        NodeList<MemberValuePair> memberValuePairs
+    ) {
+        CompilationUnit unit = AstUtils.getUnit(classDeclaration);
+        unit.addImport(annotationFullClassName);
+
+        String annotationName = StringUtils.splitLast(annotationFullClassName, "\\.");
+        return new NormalAnnotationExpr(new Name(annotationName), memberValuePairs);
     }
 
-    public static AnnotationExpr createAnnotationExpr(ClassOrInterfaceDeclaration classDeclaration, String className) {
-        AstUtils.unit(classDeclaration).addImport(className);
-        return new NormalAnnotationExpr(new Name(StringUtils.splitLast(className, "\\.")), new NodeList<>());
+    public static AnnotationExpr createAnnotationExpr(
+        ClassOrInterfaceDeclaration clazz,
+        String annotationFullClassName
+    ) {
+        return createAnnotationExpr(clazz, annotationFullClassName, new NodeList<>());
     }
 
-    public static MethodDeclaration createMethodDeclaration(ClassOrInterfaceDeclaration classDeclaration, String methodName) {
+    public static MethodDeclaration createMethodDeclaration(
+        ClassOrInterfaceDeclaration classDeclaration,
+        String methodName
+    ) {
         return classDeclaration.addMethod(methodName, Modifier.Keyword.PUBLIC);
     }
 
-    public static String name(NodeWithName<? extends Node> type) {
-        return type.getName().asString();
-    }
-
-    public static String name(NodeWithSimpleName<? extends Node> type) {
-        return type.getName().asString();
-    }
-
-    public static Optional<ImportDeclaration> findImportDeclarationByClassType(CompilationUnit srcUnit, ClassOrInterfaceType classType) {
-        return srcUnit.getImports().stream().filter(importDeclaration -> name(classType).equals(StringUtils.splitLast(name(importDeclaration), "\\."))).findFirst();
-    }
-
-    public static VariableDeclarator getVariableDeclarator(FieldDeclaration fieldDeclaration) {
-        return fieldDeclaration.findAll(VariableDeclarator.class).get(0);
-    }
-
-    public static VariableDeclarator createVariableDeclarator(ClassOrInterfaceType fieldType, String fieldName) {
+    public static VariableDeclarator createVariableDeclarator(
+        ClassOrInterfaceType fieldType,
+        String fieldName
+    ) {
         VariableDeclarator variableDeclarator = new VariableDeclarator();
         variableDeclarator.setType(fieldType);
         variableDeclarator.setName(fieldName);
-        variableDeclarator.setInitializer(FieldUtils.defaultValue(fieldType.asString(), false));
+        String fieldTypeName = fieldType.asString();
+        boolean genericExists = fieldType.getTypeArguments().isPresent();
+        String defaultValue = FieldUtils.createDefaultValue(fieldTypeName, genericExists);
+        variableDeclarator.setInitializer(defaultValue);
         return variableDeclarator;
     }
 
-    public static Optional<ClassOrInterfaceType> findClassOrInterfaceType(FieldDeclaration srcFieldDeclaration) {
-        if (srcFieldDeclaration.getElementType().isClassOrInterfaceType()) {
-            return Optional.of(srcFieldDeclaration.getElementType().asClassOrInterfaceType());
-        }
 
-        if (srcFieldDeclaration.getElementType().isPrimitiveType()) {
-            return Optional.of(srcFieldDeclaration.getElementType().asPrimitiveType().toBoxedType());
-        }
 
-        return Optional.empty();
-    }
-
-    public static String type(Type type) {
-        return StringUtils.splitFirst(type.toString(), "<");
-    }
-
-    public static void handleClassTypeField(
+    public static void consumeField(
         CompilationUnit unit,
         BiConsumer<FieldDeclaration, ClassOrInterfaceType> consumer
     ) {
@@ -148,12 +198,16 @@ public class AstUtils {
             );
     }
 
-    public static boolean fieldExists(ClassOrInterfaceDeclaration testClass, String fieldName) {
+    public static boolean checkFieldExists(ClassOrInterfaceDeclaration testClass, String fieldName) {
         return testClass.getFieldByName(fieldName).isPresent();
     }
 
-    public static boolean methodExists(ClassOrInterfaceDeclaration testClass, String methodName) {
+    public static boolean checkMethodExists(ClassOrInterfaceDeclaration testClass, String methodName) {
         return !testClass.getMethodsByName(methodName).isEmpty();
+    }
+
+    public static boolean checkVoidReturn(MethodDeclaration method) {
+        return "void".equals(method.getType().toString());
     }
 
 }
