@@ -16,7 +16,6 @@ import com.github.javaparser.ast.expr.MemberValuePair;
 import com.github.javaparser.ast.expr.Name;
 import com.github.javaparser.ast.expr.NameExpr;
 import com.github.javaparser.ast.expr.NormalAnnotationExpr;
-import com.github.javaparser.ast.expr.SimpleName;
 import com.github.javaparser.ast.expr.VariableDeclarationExpr;
 import com.github.javaparser.ast.nodeTypes.NodeWithAnnotations;
 import com.github.javaparser.ast.nodeTypes.NodeWithName;
@@ -24,6 +23,7 @@ import com.github.javaparser.ast.nodeTypes.NodeWithSimpleName;
 import com.github.javaparser.ast.stmt.ExpressionStmt;
 import com.github.javaparser.ast.type.ArrayType;
 import com.github.javaparser.ast.type.ClassOrInterfaceType;
+import com.github.javaparser.ast.type.PrimitiveType;
 import com.github.javaparser.ast.type.Type;
 
 import java.io.File;
@@ -73,7 +73,6 @@ public class AstUtils {
             .orElseThrow(() -> new RuntimeException("class name not exists."));
     }
 
-
     public static String getName(NodeWithName<? extends Node> type) {
         return type.getName().asString();
     }
@@ -84,6 +83,14 @@ public class AstUtils {
 
     public static String getType(Type type) {
         return StringUtils.splitFirst(type.toString(), "<");
+    }
+
+    public static ClassOrInterfaceType getClassOrInterfaceType(Type type) {
+        if (type.isPrimitiveType()) {
+            return ((PrimitiveType) type).toBoxedType();
+        } else {
+            return (ClassOrInterfaceType) type;
+        }
     }
 
     public static Optional<ImportDeclaration> findImportDeclaration(
@@ -98,6 +105,31 @@ public class AstUtils {
                 return classTypeName.equals(importClassTypeName);
             })
             .findFirst();
+    }
+
+    private static String getDefaultValue(Type type) {
+        if (type.isArrayType()) {
+            return "new " + ((ArrayType) type).getComponentType().asString() + "[]{}";
+        } else {
+            ClassOrInterfaceType classType = getClassOrInterfaceType(type);
+            return getDefaultValue(classType);
+        }
+    }
+
+    public static String getDefaultValue(ClassOrInterfaceType fieldType) {
+        String fieldTypeName = getName(fieldType);
+        boolean genericExists = fieldType.getTypeArguments().isPresent();
+        return FieldUtils.createDefaultValue(fieldTypeName, genericExists);
+    }
+
+    public static Type toUnboxedType(Type type) {
+        if (type.isClassOrInterfaceType()) {
+            ClassOrInterfaceType classType = (ClassOrInterfaceType) type;
+            if (classType.isBoxedType()) {
+                return classType.toUnboxedType();
+            }
+        }
+        return type;
     }
 
     public static Optional<ClassOrInterfaceType> findClassOrInterfaceType(FieldDeclaration field) {
@@ -171,20 +203,33 @@ public class AstUtils {
     }
 
     public static VariableDeclarator createVariableDeclarator(
-        ClassOrInterfaceType fieldType,
-        String fieldName
+        Type fieldType,
+        String fieldName,
+        String defaultValue
     ) {
         VariableDeclarator variableDeclarator = new VariableDeclarator();
-        variableDeclarator.setType(fieldType);
         variableDeclarator.setName(fieldName);
-        String fieldTypeName = fieldType.asString();
-        boolean genericExists = fieldType.getTypeArguments().isPresent();
-        String defaultValue = FieldUtils.createDefaultValue(fieldTypeName, genericExists);
+        variableDeclarator.setType(fieldType);
         variableDeclarator.setInitializer(defaultValue);
         return variableDeclarator;
     }
 
+    public static ExpressionStmt createExpressionStmt(VariableDeclarationExpr variableExpr) {
+        return new ExpressionStmt(variableExpr);
+    }
 
+    public static VariableDeclarationExpr createVariableDeclarationExpr(
+        Type type,
+        String fieldName
+    ) {
+        VariableDeclarationExpr variableDeclarationExpr = new VariableDeclarationExpr();
+        NodeList<VariableDeclarator> variableDeclarators = new NodeList<>();
+        String defaultValue = AstUtils.getDefaultValue(type);
+        VariableDeclarator variableDeclarator = createVariableDeclarator(toUnboxedType(type), fieldName, defaultValue);
+        variableDeclarators.add(variableDeclarator);
+        variableDeclarationExpr.setVariables(variableDeclarators);
+        return variableDeclarationExpr;
+    }
 
     public static void consumeField(
         CompilationUnit unit,

@@ -25,8 +25,8 @@ public class ParseServiceTest {
     @Before()
     public void setUp() {
         parseService.name = name;
-        parseService.age = age;
         reflectField("parseRepository", parseRepository);
+        parseService.age = age;
     }
 
     @After()
@@ -42,9 +42,9 @@ public class ParseServiceTest {
         try {
             // TODO then assert inner method run times
             throw new RuntimeException();
-        } catch (Exception e) {
-            String stack = stackTrace(e);
-            Assert.fail("Should not run here.\n\t" + stack);
+        } catch (Exception exception) {
+            String stackTrace = getStackTrace(exception);
+            Assert.fail("Should not run here.\n\t" + stackTrace);
         }
     }
 
@@ -243,7 +243,7 @@ public class ParseServiceTest {
         }
     }
 
-    private String stackTrace(Exception e) {
+    private String getStackTrace(Exception e) {
         return Arrays.stream(e.getStackTrace()).map(StackTraceElement::toString).collect(Collectors.joining("\n\t"));
     }
 }

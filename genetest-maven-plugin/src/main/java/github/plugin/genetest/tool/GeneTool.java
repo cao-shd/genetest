@@ -14,7 +14,6 @@ import com.github.javaparser.ast.expr.Expression;
 import com.github.javaparser.ast.expr.MemberValuePair;
 import com.github.javaparser.ast.expr.MethodCallExpr;
 import com.github.javaparser.ast.expr.NameExpr;
-import com.github.javaparser.ast.expr.SimpleName;
 import com.github.javaparser.ast.expr.VariableDeclarationExpr;
 import com.github.javaparser.ast.stmt.BlockStmt;
 import com.github.javaparser.ast.stmt.CatchClause;
@@ -22,14 +21,11 @@ import com.github.javaparser.ast.stmt.ExpressionStmt;
 import com.github.javaparser.ast.stmt.IfStmt;
 import com.github.javaparser.ast.stmt.Statement;
 import com.github.javaparser.ast.stmt.TryStmt;
-import com.github.javaparser.ast.type.ArrayType;
 import com.github.javaparser.ast.type.ClassOrInterfaceType;
-import com.github.javaparser.ast.type.PrimitiveType;
 import com.github.javaparser.ast.type.Type;
 import com.github.javaparser.ast.type.TypeParameter;
 import github.plugin.genetest.util.AstUtils;
 import github.plugin.genetest.util.ExprUtils;
-import github.plugin.genetest.util.FieldUtils;
 import github.plugin.genetest.util.FileUtils;
 import github.plugin.genetest.util.NameUtils;
 import github.plugin.genetest.util.StringUtils;
@@ -490,89 +486,37 @@ public class GeneTool {
         NodeList<Parameter> parameters = srcMethod.getParameters();
         for (int i = 0, parametersSize = parameters.size(); i < parametersSize; i++) {
             Parameter parameter = parameters.get(i);
-            Type parameterType = parameter.getType();
-            ExpressionStmt expressionStmt;
-            if (parameterType.isArrayType()) {
-                SimpleName parameterName = parameter.getName();
-                expressionStmt = createArrayExpressionStmt((ArrayType) parameterType, parameterName);
-            } else {
-                ClassOrInterfaceType classOrInterfaceType;
-                if (parameterType.isPrimitiveType()) {
-                    classOrInterfaceType = ((PrimitiveType) parameterType).toBoxedType();
-                } else {
-                    classOrInterfaceType = (ClassOrInterfaceType) parameterType;
-                }
-                SimpleName parameterName = parameter.getName();
-                expressionStmt = createClassExpressionStmt(srcUnit, testUnit, classOrInterfaceType, parameterName);
+            Type fieldType = parameter.getType();
+
+            // create import
+            String fieldTypeName = AstUtils.getType(fieldType);
+            if ("List".equals(fieldTypeName)) {
+                String importName1 = "java.util.List";
+                String importName2 = "java.util.ArrayList";
+                createImport(testUnit, importName1, importName2);
             }
+            if ("Map".equals(fieldTypeName)) {
+                String importName1 = "java.util.Map";
+                String importName2 = "java.util.HashMap";
+                createImport(testUnit, importName1, importName2);
+            }
+
+            AstUtils.findImportDeclaration(srcUnit, fieldTypeName).ifPresent(importDeclaration ->
+                createImport(testUnit, AstUtils.getName(importDeclaration))
+            );
+
+            // create given statement
+            String fieldName = AstUtils.getName(parameter);
+            VariableDeclarationExpr variableExpr = AstUtils.createVariableDeclarationExpr(fieldType, fieldName);
+
+            ExpressionStmt expressionStmt = AstUtils.createExpressionStmt(variableExpr);
             if (i == 0) {
-                expressionStmt.setLineComment(" TODO given");
+                String comment = " TODO given";
+                variableExpr.setLineComment(comment);
             }
+
             testContent.addStatement(expressionStmt);
         }
-    }
-
-    private ExpressionStmt createClassExpressionStmt(
-        CompilationUnit srcUnit,
-        CompilationUnit testUnit,
-        ClassOrInterfaceType type,
-        SimpleName parameterName
-    ) {
-
-        String typeName = AstUtils.getType(type);
-        if ("List".equals(typeName)) {
-            String importName1 = "java.util.List";
-            String importName2 = "java.util.ArrayList";
-            createImport(testUnit, importName1, importName2);
-        }
-        if ("Map".equals(typeName)) {
-            String importName1 = "java.util.Map";
-            String importName2 = "java.util.HashMap";
-            createImport(testUnit, importName1, importName2);
-        }
-
-        AstUtils.findImportDeclaration(srcUnit, typeName).ifPresent(importDeclaration ->
-            createImport(testUnit, AstUtils.getName(importDeclaration))
-        );
-
-        ExpressionStmt expressionStmt = new ExpressionStmt();
-        VariableDeclarationExpr variableDeclarationExpr = new VariableDeclarationExpr();
-        VariableDeclarator variableDeclarator = new VariableDeclarator();
-        boolean genericExists = type.getTypeArguments().isPresent();
-
-        if (type.isBoxedType()) {
-            variableDeclarator.setType(type.toUnboxedType());
-        } else {
-            variableDeclarator.setType(type);
-        }
-        variableDeclarator.setName(parameterName);
-        String VariableDefaultValue = FieldUtils.createDefaultValue(typeName, genericExists);
-        variableDeclarator.setInitializer(VariableDefaultValue);
-
-        NodeList<VariableDeclarator> variableDeclarators = new NodeList<>();
-        variableDeclarators.add(variableDeclarator);
-        variableDeclarationExpr.setVariables(variableDeclarators);
-        expressionStmt.setExpression(variableDeclarationExpr);
-        return expressionStmt;
-    }
-
-    public static ExpressionStmt createArrayExpressionStmt(
-        ArrayType parameterType,
-        SimpleName parameterName
-    ) {
-        Type componentType = parameterType.getComponentType();
-        ExpressionStmt expressionStmt = new ExpressionStmt();
-        VariableDeclarationExpr variableDeclarationExpr = new VariableDeclarationExpr();
-        VariableDeclarator variableDeclarator = new VariableDeclarator();
-        variableDeclarator.setName(parameterName);
-        variableDeclarator.setType(parameterType);
-        variableDeclarator.setInitializer("new " + componentType.asString() + "[]{}");
-
-        NodeList<VariableDeclarator> variableDeclarators = new NodeList<>();
-        variableDeclarators.add(variableDeclarator);
-        variableDeclarationExpr.setVariables(variableDeclarators);
-        expressionStmt.setExpression(variableDeclarationExpr);
-        return expressionStmt;
     }
 
     private void createWhenBlock(MethodDeclaration srcMethod, BlockStmt testContent) {
@@ -779,7 +723,8 @@ public class GeneTool {
             info("create field annotation: " + annotationName);
         } else {
             // set default value
-            VariableDeclarator variable = AstUtils.createVariableDeclarator(fieldType, fieldName);
+            String defaultValue = AstUtils.getDefaultValue(fieldType);
+            VariableDeclarator variable = AstUtils.createVariableDeclarator(fieldType, fieldName, defaultValue);
             field.setVariable(0, variable);
         }
 
@@ -815,9 +760,7 @@ public class GeneTool {
     ) {
         // import package
         CompilationUnit unit = AstUtils.getUnit(clazz);
-        for (String importName : importNames) {
-            createImport(unit, importName);
-        }
+        createImport(unit, importNames);
 
         // create method
         MethodDeclaration method = StaticJavaParser.parseMethodDeclaration(methodContent);
@@ -829,7 +772,6 @@ public class GeneTool {
         info("create method: " + methodName);
         debug(method);
     }
-
 
     private void info(String info) {
         log.info(info);

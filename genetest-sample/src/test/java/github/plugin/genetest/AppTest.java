@@ -28,13 +28,13 @@ public class AppTest {
         try {
             // TODO then assert inner method run times
             throw new RuntimeException();
-        } catch (Exception e) {
-            String stack = stackTrace(e);
-            Assert.fail("Should not run here.\n\t" + stack);
+        } catch (Exception exception) {
+            String stackTrace = getStackTrace(exception);
+            Assert.fail("Should not run here.\n\t" + stackTrace);
         }
     }
 
-    private String stackTrace(Exception e) {
+    private String getStackTrace(Exception e) {
         return Arrays.stream(e.getStackTrace()).map(StackTraceElement::toString).collect(Collectors.joining("\n\t"));
     }
 }
