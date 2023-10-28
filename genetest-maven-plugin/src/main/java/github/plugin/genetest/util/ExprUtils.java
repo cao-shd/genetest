@@ -14,6 +14,18 @@ public class ExprUtils {
         return expression.replaceAll("!", "_not_");
     }
 
+    public static String replaceAnd(String expression) {
+        return expression.replaceAll("&&", "_and_");
+    }
+
+    public static String replaceOr(String expression) {
+        return expression.replaceAll("\\|\\|", "_or_");
+    }
+
+    public static String replaceComma(String expression) {
+        return expression.replaceAll(",", "_and_");
+    }
+
     public static String replaceQuote(String expression) {
         return expression.replaceAll("\"", "");
     }
@@ -30,7 +42,6 @@ public class ExprUtils {
         return expression.replaceAll("__", "_");
     }
 
-
     public static String replaceLastUnderline(String expression) {
         int index = expression.length() - 1;
         if (expression.charAt(index) == '_') {
@@ -44,6 +55,9 @@ public class ExprUtils {
         expression = replaceQuote(expression);
         expression = replaceEquals(expression);
         expression = replaceNot(expression);
+        expression = replaceAnd(expression);
+        expression = replaceOr(expression);
+        expression = replaceComma(expression);
         expression = replaceBracket(expression);
         expression = replaceDot(expression);
         expression = NameUtils.toUnderscoreCase(expression);
