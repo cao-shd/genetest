@@ -104,7 +104,7 @@ public class GeneMojo extends AbstractMojo {
                 new GeneTool(mock, srcFile, testFile, false, log).generate();
             } else {
                 log.info("append test file: " + testFile);
-//                new GeneTool(mock, srcFile, testFile, true, log).generate();
+                new GeneTool(mock, srcFile, testFile, true, log).generate();
             }
         } else {
             FileUtils.makeParentDir(testFile);

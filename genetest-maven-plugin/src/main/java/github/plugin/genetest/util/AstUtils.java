@@ -28,6 +28,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.function.BiConsumer;
 import java.util.stream.Collectors;
 
 public class AstUtils {
@@ -131,13 +132,28 @@ public class AstUtils {
         return Optional.empty();
     }
 
-    public static boolean isInjectType(ClassOrInterfaceType srcFieldType) {
-        return !srcFieldType.asString().equals("String") && !srcFieldType.isBoxedType();
-    }
-
     public static String type(Type type) {
         return StringUtils.splitFirst(type.toString(), "<");
     }
 
+    public static void handleClassTypeField(
+        CompilationUnit unit,
+        BiConsumer<FieldDeclaration, ClassOrInterfaceType> consumer
+    ) {
+        unit.findAll(FieldDeclaration.class).stream()
+            .filter(declaration -> !declaration.isFinal())
+            .forEach(
+                declaration -> AstUtils.findClassOrInterfaceType(declaration)
+                    .ifPresent(fieldType -> consumer.accept(declaration, fieldType))
+            );
+    }
+
+    public static boolean fieldExists(ClassOrInterfaceDeclaration testClass, String fieldName) {
+        return testClass.getFieldByName(fieldName).isPresent();
+    }
+
+    public static boolean methodExists(ClassOrInterfaceDeclaration testClass, String methodName) {
+        return !testClass.getMethodsByName(methodName).isEmpty();
+    }
 
 }

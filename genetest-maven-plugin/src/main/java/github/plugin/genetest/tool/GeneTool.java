@@ -84,26 +84,23 @@ public class GeneTool {
         // parse src unit
         CompilationUnit srcUnit = AstUtils.unit(srcFile);
 
-        // create test unit
-        CompilationUnit testUnit = calcTestUnit();
+        // create test unit if not exists
+        CompilationUnit testUnit = createIfNotExistsTestUnit();
 
-        // create test class
-        ClassOrInterfaceDeclaration testClass = createTestClass(srcUnit, testUnit);
+        // create test class if not exists
+        ClassOrInterfaceDeclaration testClass = createIfNotExistsTestClass(srcUnit, testUnit);
 
-        // create be tested class field
-        createBeTestClassField(testClass);
+        // create test class field if not exists
+        createIfNotExistsTestClassField(srcUnit, testClass);
 
-        // create test class inject field
-        createInjectedField(srcUnit, testClass);
+        // create setUp method if not exists
+        createIfNotExistsSetUpMethod(srcUnit, testClass);
 
-        // create setUp method
-        createSetUpMethod(srcUnit, testClass);
+        // create tearDown method if not exists
+        createIfNotExistsTearDownMethod(testClass);
 
-        // create tearDown method
-        createTearDownMethod(testClass);
-
-        // create test_xxx_branch_xxx method
-        createTestMethod(srcUnit, testClass);
+        // create test_xxx_branch_xxx method if not exists
+        createIfNotExistsTestMethod(srcUnit, testClass);
 
         // create reflectField field
         if (privateFieldExists) {
@@ -123,7 +120,7 @@ public class GeneTool {
         return testUnit;
     }
 
-    private CompilationUnit calcTestUnit() {
+    private CompilationUnit createIfNotExistsTestUnit() {
         if (append) {
             return AstUtils.unit(testFile);
         } else {
@@ -131,17 +128,21 @@ public class GeneTool {
         }
     }
 
+    private ClassOrInterfaceDeclaration createIfNotExistsTestClass(CompilationUnit srcUnit, CompilationUnit testUnit) {
+        String testClassName = calcClassName(testFile);
+        Optional<ClassOrInterfaceDeclaration> optional = testUnit.getClassByName(testClassName);
+        return optional.orElseGet(() -> createTestClass(srcUnit, testUnit));
+    }
+
     private ClassOrInterfaceDeclaration createTestClass(CompilationUnit srcUnit, CompilationUnit testUnit) {
         // create package
-        PackageDeclaration pkg = AstUtils.packageDeclaration(srcUnit);
-        testUnit.setPackageDeclaration(pkg);
-        info("create package: " + pkg.getNameAsString());
-        debug(pkg);
+        createTestClassPackage(srcUnit, testUnit);
 
+        String className = calcClassName(testFile);
         // create class
-        String testClassName = calcClassName(testFile);
-        ClassOrInterfaceDeclaration clazz = testUnit.addClass(testClassName);
+        ClassOrInterfaceDeclaration clazz = testUnit.addClass(className);
 
+        // create class annotation
         if (MOCKITO.equals(mock)) {
             // add import
             String importName = "org.mockito.junit.MockitoJUnitRunner";
@@ -158,13 +159,41 @@ public class GeneTool {
 
         info("create be test class: " + clazz.getNameAsString());
         debug(clazz);
+
         return clazz;
     }
 
-    private void createBeTestClassField(ClassOrInterfaceDeclaration testClass) {
-        // create field
+    private void createTestClassPackage(CompilationUnit srcUnit, CompilationUnit testUnit) {
+        PackageDeclaration pkg = AstUtils.packageDeclaration(srcUnit);
+        testUnit.setPackageDeclaration(pkg);
+        info("create package: " + pkg.getNameAsString());
+        debug(pkg);
+    }
+
+    private void createIfNotExistsTestClassField(CompilationUnit srcUnit, ClassOrInterfaceDeclaration testClass) {
         String className = calcClassName(srcFile);
-        String fieldName = NameUtils.toCamelCase(className);
+        String beTestFieldName = NameUtils.toCamelCase(className);
+        // create test class be tested field if not exists
+        if (!AstUtils.fieldExists(testClass, beTestFieldName)) {
+            createClassFieldBeTest(testClass, className, beTestFieldName);
+        }
+
+        // create test class inject field if not exists
+        AstUtils.handleClassTypeField(srcUnit, (declaration, type) -> {
+            String injectFieldName = AstUtils.name(AstUtils.getVariableDeclarator(declaration));
+            if (!AstUtils.fieldExists(testClass, injectFieldName)) {
+                createClassFieldInjected(srcUnit, testClass, type, injectFieldName);
+            }
+        });
+
+    }
+
+    private void createClassFieldBeTest(
+        ClassOrInterfaceDeclaration testClass,
+        String className,
+        String fieldName
+    ) {
+        // create field
         ClassOrInterfaceType fieldType = new ClassOrInterfaceType(null, className);
         FieldDeclaration field = testClass.addPublicField(fieldType, fieldName);
 
@@ -178,52 +207,11 @@ public class GeneTool {
             field.setVariable(0, variable);
         }
 
-        info("create be test field: " + fieldName);
+        info("create field: " + fieldName);
         debug(field);
     }
 
-    private void createInjectedField(CompilationUnit srcUnit, ClassOrInterfaceDeclaration testClass) {
-        // new
-        srcUnit.findAll(FieldDeclaration.class)
-            .stream().filter(fieldDeclaration -> !fieldDeclaration.isFinal())
-            .forEach(srcField -> AstUtils.findClassOrInterfaceType(srcField)
-                .filter(field -> (!AstUtils.isInjectType(field) || !MOCKITO.equals(mock)))
-                .ifPresent(
-                    fieldType -> {
-                        // create field
-                        String fieldName = AstUtils.name(AstUtils.getVariableDeclarator(srcField));
-                        FieldDeclaration field = createInjectedField(srcUnit, testClass, fieldType, fieldName);
-
-                        // set default value
-                        VariableDeclarator variable = AstUtils.createVariableDeclarator(fieldType, fieldName);
-                        field.setVariable(0, variable);
-                        debug(field);
-                    }
-                )
-            );
-
-        // mockito mock
-        srcUnit.findAll(FieldDeclaration.class)
-            .stream().filter(fieldDeclaration -> !fieldDeclaration.isFinal())
-            .forEach(srcField -> AstUtils.findClassOrInterfaceType(srcField)
-                .filter(srcFieldType -> AstUtils.isInjectType(srcFieldType) && MOCKITO.equals(mock))
-                .ifPresent(
-                    fieldType -> {
-                        // create field
-                        String fieldName = AstUtils.name(AstUtils.getVariableDeclarator(srcField));
-                        FieldDeclaration field = createInjectedField(srcUnit, testClass, fieldType, fieldName);
-
-                        // add annotation @Mock
-                        String annotationName = "org.mockito.Mock";
-                        addAnnotation(testClass, field, annotationName);
-
-                        debug(field);
-                    }
-                )
-            );
-    }
-
-    private FieldDeclaration createInjectedField(
+    private void createClassFieldInjected(
         CompilationUnit srcUnit,
         ClassOrInterfaceDeclaration testClass,
         ClassOrInterfaceType fieldType,
@@ -233,71 +221,81 @@ public class GeneTool {
         AstUtils.findImportDeclarationByClassType(srcUnit, fieldType)
             .ifPresent(declaration -> testClass.findCompilationUnit()
                 .ifPresent(unit -> addImport(unit, declaration.getNameAsString())));
-        // log
-        info("create injected field: " + fieldName);
-        // create variable
-        return testClass.addPublicField(fieldType, fieldName);
+
+        // create field
+        FieldDeclaration field = testClass.addPublicField(fieldType, fieldName);
+        if (MOCKITO.equals(mock)) {
+            // add mock annotation
+            String annotationName = "org.mockito.Mock";
+            addAnnotation(testClass, field, annotationName);
+        } else {
+            // set default value
+            VariableDeclarator variable = AstUtils.createVariableDeclarator(fieldType, fieldName);
+            field.setVariable(0, variable);
+        }
+
+        info("create field: " + fieldName);
+        debug(field);
     }
 
-    private void createSetUpMethod(CompilationUnit srcUnit, ClassOrInterfaceDeclaration testClass) {
-        // create setUp method
+    private void createIfNotExistsSetUpMethod(CompilationUnit srcUnit, ClassOrInterfaceDeclaration testClass) {
         String methodName = "setUp";
-        MethodDeclaration method = createMethod(testClass, methodName);
-
-        // create annotation @Before
-        String annotationName = "org.junit.Before";
-        addAnnotation(testClass, method, annotationName);
-
-        // create method content
-        BlockStmt blockStmt = new BlockStmt();
-
-        // set public field
-        srcUnit.findAll(FieldDeclaration.class).stream()
-            .filter(fieldDeclaration -> fieldDeclaration.isPublic() && !fieldDeclaration.isFinal())
-            .forEach(
-                srcField -> {
-                    // add setup content
-                    String classFieldName = NameUtils.toCamelCase(AstUtils.className(srcUnit));
-                    String fieldName = AstUtils.name(AstUtils.getVariableDeclarator(srcField));
-                    String field = classFieldName + "." + fieldName + " = " + fieldName + ";";
-                    Statement fieldStmt = StaticJavaParser.parseStatement(field);
-                    blockStmt.addStatement(fieldStmt);
-                }
-            );
-
-        // set private file
-        srcUnit.findAll(FieldDeclaration.class).stream()
-            .filter(fieldDeclaration -> !fieldDeclaration.isPublic())
-            .forEach(
-                srcField -> {
-                    privateFieldExists = true;
-                    // add setup content
-                    String mockFieldName = AstUtils.name(AstUtils.getVariableDeclarator(srcField));
-                    NameExpr fieldName = new NameExpr("\"" + mockFieldName + "\"");
-                    NameExpr fieldValue = new NameExpr(mockFieldName);
-                    MethodCallExpr methodCallExpr = new MethodCallExpr("reflectField", fieldName, fieldValue);
-                    blockStmt.addStatement(methodCallExpr);
-                }
-            );
-
-        method.setBody(blockStmt);
-
-        debug(method);
+        if (!AstUtils.methodExists(testClass, methodName)) {
+            // create setUp method
+            MethodDeclaration method = createTestMethod(testClass, methodName, "org.junit.Before");
+            // create setUp method content
+            BlockStmt blockStmt = createSetUpMethodContent(srcUnit);
+            method.setBody(blockStmt);
+            // debug method
+            debug(method);
+        }
     }
 
-    private void createTearDownMethod(ClassOrInterfaceDeclaration testClass) {
+    private BlockStmt createSetUpMethodContent(CompilationUnit srcUnit) {
+        BlockStmt blockStmt = new BlockStmt();
+        AstUtils.handleClassTypeField(srcUnit, ((declaration, type) -> {
+            if (declaration.isPublic()) {
+                // add setup content
+                String classFieldName = NameUtils.toCamelCase(AstUtils.className(srcUnit));
+                String fieldName = AstUtils.name(AstUtils.getVariableDeclarator(declaration));
+                String field = classFieldName + "." + fieldName + " = " + fieldName + ";";
+                Statement fieldStmt = StaticJavaParser.parseStatement(field);
+                blockStmt.addStatement(fieldStmt);
+            } else {
+                privateFieldExists = true;
+                // add setup content
+                String mockFieldName = AstUtils.name(AstUtils.getVariableDeclarator(declaration));
+                NameExpr fieldName = new NameExpr("\"" + mockFieldName + "\"");
+                NameExpr fieldValue = new NameExpr(mockFieldName);
+                MethodCallExpr methodCallExpr = new MethodCallExpr("reflectField", fieldName, fieldValue);
+                blockStmt.addStatement(methodCallExpr);
+            }
+        }));
+        return blockStmt;
+    }
+
+    private void createIfNotExistsTearDownMethod(ClassOrInterfaceDeclaration testClass) {
         // create method tearDown
         String methodName = "tearDown";
-        MethodDeclaration method = createMethod(testClass, methodName);
-
-        // create annotation @After
-        String annotationName = "org.junit.After";
-        addAnnotation(testClass, method, annotationName);
-
-        debug(method);
+        if (!AstUtils.methodExists(testClass, methodName)) {
+            createTestMethod(testClass, methodName, "org.junit.After");
+        }
     }
 
-    private void createTestMethod(CompilationUnit srcUnit, ClassOrInterfaceDeclaration testClass) {
+    private MethodDeclaration createTestMethod(ClassOrInterfaceDeclaration testClass, String methodName, String annotationName) {
+
+        MethodDeclaration method = AstUtils.createMethodDeclaration(testClass, methodName);
+
+        // create annotation
+        addAnnotation(testClass, method, annotationName);
+
+        info("create method: " + methodName);
+        debug(method);
+
+        return method;
+    }
+
+    private void createIfNotExistsTestMethod(CompilationUnit srcUnit, ClassOrInterfaceDeclaration testClass) {
         for (MethodDeclaration srcMethod : srcUnit.findAll(MethodDeclaration.class)) {
             srcMethod.getBody().ifPresent((blockStmt) -> {
                 List<Node> childNodes = blockStmt.getChildNodes();
@@ -428,13 +426,12 @@ public class GeneTool {
     ) {
         // create method
         String methodName = createTestMethodName(srcMethod.getNameAsString(), methodNameSuffix);
-        MethodDeclaration method = createMethod(testClass, methodName);
 
-        // create annotation @Test
-        String annotationName = "org.junit.Test";
-        addAnnotation(testClass, method, annotationName);
+        if (AstUtils.methodExists(testClass, methodName)) {
+            return;
+        }
 
-        debug(method);
+        MethodDeclaration method = createTestMethod(testClass, methodName, "org.junit.Test");
 
         // create test method content
         BlockStmt testContent = new BlockStmt();
@@ -472,8 +469,8 @@ public class GeneTool {
         }
     }
 
-    private boolean isVoidReturn(MethodDeclaration srcMethod) {
-        return "void".equals(srcMethod.getType().toString());
+    private boolean isVoidReturn(MethodDeclaration method) {
+        return "void".equals(method.getType().toString());
     }
 
     private void createAssertTimesBlock(ClassOrInterfaceDeclaration testClass, BlockStmt testContent) {
@@ -521,6 +518,7 @@ public class GeneTool {
         // create expect result
         String expectContentStr = "Object expect = null;";
         Statement expectStmt = StaticJavaParser.parseStatement(expectContentStr);
+
         // create modify comment
         expectStmt.setLineComment(" TODO then");
         testContent.addStatement(expectStmt);
@@ -582,11 +580,10 @@ public class GeneTool {
         CompilationUnit srcUnit = AstUtils.unit(srcMethod);
         String classType = AstUtils.className(srcUnit);
         String classFieldName = NameUtils.toCamelCase(classType);
-        String methodName = srcMethod.getNameAsString();
+
         Statement whenStmt;
         if (srcMethod.isPublic()) {
-
-            String whenField = createCallWhenMethod(srcMethod, classFieldName, methodName);
+            String whenField = createCallWhenMethod(srcMethod, classFieldName);
             whenStmt = StaticJavaParser.parseStatement(whenField);
         } else {
             privateMethodExists = true;
@@ -599,7 +596,7 @@ public class GeneTool {
             Statement whenFieldParamsStmt = StaticJavaParser.parseStatement(whenFieldParams);
             testContent.addStatement(whenFieldParamsStmt);
 
-            String whenField = createCallReflectWhenMethod(methodName);
+            String whenField = createCallReflectWhenMethod(srcMethod);
             whenStmt = StaticJavaParser.parseStatement(whenField);
         }
         whenStmt.setLineComment(" when");
@@ -620,30 +617,37 @@ public class GeneTool {
         return callWhenMethodParams;
     }
 
-    private String createCallReflectWhenMethod(String methodName) {
+    private String createCallReflectWhenMethod(MethodDeclaration method) {
+        String methodName = method.getNameAsString();
         String nameMethod = "\"" + methodName + "\"";
-        String whenStr = "Object actual = reflectMethod(" + nameMethod + ", " + "types" + ",  " + "params" + ");";
+        String whenStr;
+        if (isVoidReturn(method)) {
+            whenStr = "reflectMethod(" + nameMethod + ", " + "types" + ",  " + "params" + ");";
+        } else {
+            whenStr = "Object actual = reflectMethod(" + nameMethod + ", " + "types" + ",  " + "params" + ");";
+        }
         log.debug(whenStr);
         return whenStr;
     }
 
-    private String createCallWhenMethod(MethodDeclaration srcMethod, String fieldName, String methodName) {
+    private String createCallWhenMethod(MethodDeclaration method, String fieldName) {
         StringBuilder builder = new StringBuilder();
-        if (!isVoidReturn(srcMethod)) {
+        if (!isVoidReturn(method)) {
             builder.append("Object");
             builder.append(" actual = ");
         }
 
-        if (srcMethod.isStatic()) {
+        if (method.isStatic()) {
             builder.append(calcClassName(srcFile));
         } else {
             builder.append(fieldName);
         }
 
         builder.append(".");
+        String methodName = method.getNameAsString();
         builder.append(methodName);
         builder.append("(");
-        String params = paramJoinStr(srcMethod.getParameters());
+        String params = paramJoinStr(method.getParameters());
         builder.append(params);
         builder.append(");");
         String callWhenMethod = builder.toString();
@@ -745,12 +749,6 @@ public class GeneTool {
     private void addAnnotation(NodeWithAnnotations<? extends Node> node, AnnotationExpr annotation) {
         AstUtils.addAnnotation(node, annotation);
         info("create method annotation: " + annotation.getName().toString());
-    }
-
-    private MethodDeclaration createMethod(ClassOrInterfaceDeclaration clazz, String methodName) {
-        MethodDeclaration method = AstUtils.createMethodDeclaration(clazz, methodName);
-        info("create method: " + methodName);
-        return method;
     }
 
     private void createReflectField(CompilationUnit unit, ClassOrInterfaceDeclaration clazz) {
