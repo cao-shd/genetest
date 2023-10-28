@@ -185,8 +185,9 @@ public class GeneTool {
     private void createInjectedField(CompilationUnit srcUnit, ClassOrInterfaceDeclaration testClass) {
         // new
         srcUnit.findAll(FieldDeclaration.class)
+            .stream().filter(fieldDeclaration -> !fieldDeclaration.isFinal())
             .forEach(srcField -> AstUtils.findClassOrInterfaceType(srcField)
-                .filter(field -> !AstUtils.isInjectType(field) || !MOCKITO.equals(mock))
+                .filter(field -> (!AstUtils.isInjectType(field) || !MOCKITO.equals(mock)))
                 .ifPresent(
                     fieldType -> {
                         // create field
@@ -203,6 +204,7 @@ public class GeneTool {
 
         // mockito mock
         srcUnit.findAll(FieldDeclaration.class)
+            .stream().filter(fieldDeclaration -> !fieldDeclaration.isFinal())
             .forEach(srcField -> AstUtils.findClassOrInterfaceType(srcField)
                 .filter(srcFieldType -> AstUtils.isInjectType(srcFieldType) && MOCKITO.equals(mock))
                 .ifPresent(
@@ -251,7 +253,7 @@ public class GeneTool {
 
         // set public field
         srcUnit.findAll(FieldDeclaration.class).stream()
-            .filter(FieldDeclaration::isPublic)
+            .filter(fieldDeclaration -> fieldDeclaration.isPublic() && !fieldDeclaration.isFinal())
             .forEach(
                 srcField -> {
                     // add setup content
