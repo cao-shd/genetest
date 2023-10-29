@@ -177,7 +177,12 @@ public class GeneTool {
         if (!AstUtils.checkFieldExists(testClass, beTestFieldName)) {
             if (!AstUtils.checkUtilClass(srcUnit)) {
                 ClassOrInterfaceType beTestFieldType = new ClassOrInterfaceType(null, className);
-                createField(srcUnit, testClass, beTestFieldType, beTestFieldName);
+                if (!MOCKITO.equals(mock)) {
+                    createField(srcUnit, testClass, beTestFieldType, beTestFieldName);
+                } else {
+                    String annotationName = "org.mockito.InjectMocks";
+                    createMockField(srcUnit, testClass, beTestFieldType, beTestFieldName, annotationName);
+                }
             }
         }
 
@@ -185,7 +190,12 @@ public class GeneTool {
         AstUtils.consumeField(srcUnit, (injectField, injectFieldType) -> {
             String injectFieldName = AstUtils.getName(AstUtils.getVariableDeclarator(injectField));
             if (!AstUtils.checkFieldExists(testClass, injectFieldName)) {
-                createField(srcUnit, testClass, injectFieldType, injectFieldName);
+                if (!MOCKITO.equals(mock)) {
+                    createField(srcUnit, testClass, injectFieldType, injectFieldName);
+                } else {
+                    String annotationName = "org.mockito.Mock";
+                    createMockField(srcUnit, testClass, injectFieldType, injectFieldName, annotationName);
+                }
             }
         });
     }
@@ -707,19 +717,38 @@ public class GeneTool {
 
         // create field
         FieldDeclaration field = testClass.addPublicField(fieldType, fieldName);
-        if (MOCKITO.equals(mock)) {
-            // add mock annotation
-            String annotationName = "org.mockito.Mock";
-            AnnotationExpr annotation = AstUtils.createAnnotationExpr(testClass, annotationName);
-            AstUtils.addAnnotation(field, annotation);
-            info("create field annotation: " + annotationName);
-        } else {
-            // set default value
-            String defaultValue = AstUtils.getDefaultValue(fieldType);
-            VariableDeclarator variable = AstUtils.createVariableDeclarator(fieldType, fieldName, defaultValue);
-            field.setVariable(0, variable);
-        }
 
+        // set default value
+        String defaultValue = AstUtils.getDefaultValue(fieldType);
+        VariableDeclarator variable = AstUtils.createVariableDeclarator(fieldType, fieldName, defaultValue);
+        field.setVariable(0, variable);
+
+        // print log
+        info("create field: " + fieldName);
+        debug(field);
+    }
+
+    private void createMockField(
+        CompilationUnit srcUnit,
+        ClassOrInterfaceDeclaration testClass,
+        ClassOrInterfaceType fieldType,
+        String fieldName,
+        String annotationName
+    ) {
+        // import package
+        AstUtils.findImportDeclaration(srcUnit, AstUtils.getName(fieldType))
+            .ifPresent(declaration -> testClass.findCompilationUnit()
+                .ifPresent(unit -> createImport(unit, declaration.getNameAsString())));
+
+        // create field
+        FieldDeclaration field = testClass.addPublicField(fieldType, fieldName);
+
+        // add mock annotation
+        AnnotationExpr annotation = AstUtils.createAnnotationExpr(testClass, annotationName);
+        AstUtils.addAnnotation(field, annotation);
+        info("create field annotation: " + annotationName);
+
+        // print log
         info("create field: " + fieldName);
         debug(field);
     }
