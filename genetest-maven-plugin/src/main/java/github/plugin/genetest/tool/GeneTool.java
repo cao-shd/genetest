@@ -181,7 +181,7 @@ public class GeneTool {
                     createField(srcUnit, testClass, beTestFieldType, beTestFieldName);
                 } else {
                     String annotationName = "org.mockito.InjectMocks";
-                    createMockField(srcUnit, testClass, beTestFieldType, beTestFieldName, annotationName);
+                    createMockedField(srcUnit, testClass, beTestFieldType, beTestFieldName, annotationName);
                 }
             }
         }
@@ -194,7 +194,7 @@ public class GeneTool {
                     createField(srcUnit, testClass, injectFieldType, injectFieldName);
                 } else {
                     String annotationName = "org.mockito.Mock";
-                    createMockField(srcUnit, testClass, injectFieldType, injectFieldName, annotationName);
+                    createMockedField(srcUnit, testClass, injectFieldType, injectFieldName, annotationName);
                 }
             }
         });
@@ -728,7 +728,7 @@ public class GeneTool {
         debug(field);
     }
 
-    private void createMockField(
+    private void createMockedField(
         CompilationUnit srcUnit,
         ClassOrInterfaceDeclaration testClass,
         ClassOrInterfaceType fieldType,
