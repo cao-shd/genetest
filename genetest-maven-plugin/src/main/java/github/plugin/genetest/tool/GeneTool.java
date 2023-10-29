@@ -175,8 +175,10 @@ public class GeneTool {
         String className = AstUtils.getClassName(srcUnit);
         String beTestFieldName = NameUtils.toCamelCase(className);
         if (!AstUtils.checkFieldExists(testClass, beTestFieldName)) {
-            ClassOrInterfaceType beTestFieldType = new ClassOrInterfaceType(null, className);
-            createField(srcUnit, testClass, beTestFieldType, beTestFieldName);
+            if (!AstUtils.checkUtilClass(srcUnit)) {
+                ClassOrInterfaceType beTestFieldType = new ClassOrInterfaceType(null, className);
+                createField(srcUnit, testClass, beTestFieldType, beTestFieldName);
+            }
         }
 
         // create test class inject field if not exists
@@ -187,6 +189,8 @@ public class GeneTool {
             }
         });
     }
+
+
 
     private void createIfNotExistsSetUpMethod(
         CompilationUnit srcUnit,

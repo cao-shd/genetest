@@ -9,8 +9,6 @@ import java.util.stream.Collectors;
 
 public class AppTest {
 
-    public App app = new App();
-
     @Before()
     public void setUp() {
     }

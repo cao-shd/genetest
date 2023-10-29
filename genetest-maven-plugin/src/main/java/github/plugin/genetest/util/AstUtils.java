@@ -20,6 +20,7 @@ import com.github.javaparser.ast.expr.VariableDeclarationExpr;
 import com.github.javaparser.ast.nodeTypes.NodeWithAnnotations;
 import com.github.javaparser.ast.nodeTypes.NodeWithName;
 import com.github.javaparser.ast.nodeTypes.NodeWithSimpleName;
+import com.github.javaparser.ast.nodeTypes.modifiers.NodeWithStaticModifier;
 import com.github.javaparser.ast.stmt.ExpressionStmt;
 import com.github.javaparser.ast.type.ArrayType;
 import com.github.javaparser.ast.type.ClassOrInterfaceType;
@@ -225,7 +226,8 @@ public class AstUtils {
         VariableDeclarationExpr variableDeclarationExpr = new VariableDeclarationExpr();
         NodeList<VariableDeclarator> variableDeclarators = new NodeList<>();
         String defaultValue = AstUtils.getDefaultValue(type);
-        VariableDeclarator variableDeclarator = createVariableDeclarator(toUnboxedType(type), fieldName, defaultValue);
+        Type unboxedType = toUnboxedType(type);
+        VariableDeclarator variableDeclarator = createVariableDeclarator(unboxedType, fieldName, defaultValue);
         variableDeclarators.add(variableDeclarator);
         variableDeclarationExpr.setVariables(variableDeclarators);
         return variableDeclarationExpr;
@@ -253,6 +255,10 @@ public class AstUtils {
 
     public static boolean checkVoidReturn(MethodDeclaration method) {
         return "void".equals(method.getType().toString());
+    }
+
+    public static boolean checkUtilClass(CompilationUnit srcUnit) {
+        return srcUnit.findAll(MethodDeclaration.class).stream().anyMatch(NodeWithStaticModifier::isStatic);
     }
 
 }
