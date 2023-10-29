@@ -29,6 +29,7 @@ import com.github.javaparser.ast.type.Type;
 
 import java.io.File;
 import java.io.FileNotFoundException;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -82,8 +83,49 @@ public class AstUtils {
         return type.getName().asString();
     }
 
-    public static String getType(Type type) {
+    public static String getTypeName(Type type) {
         return StringUtils.splitFirst(type.toString(), "<");
+    }
+
+    public static List<String> getGenericTypeNames(CompilationUnit unit, Type type) {
+        List<String> result = new ArrayList<>();
+        if (type.isClassOrInterfaceType()) {
+            ClassOrInterfaceType classOrInterfaceType = (ClassOrInterfaceType) type;
+            classOrInterfaceType.getTypeArguments().ifPresent(types -> {
+                for (Type t : types) {
+                    findImportName(unit, getTypeName(t)).ifPresent(result::add);
+                    result.addAll(getGenericTypeNames(unit, t));
+                }
+            });
+        }
+        return result;
+    }
+
+    public static List<String> getImportNames(CompilationUnit unit, Type type) {
+        List<String> result = new ArrayList<>();
+        // get type name
+        String typeName = getTypeName(type);
+
+        // add type itself
+        findImportName(unit, typeName).ifPresent(result::add);
+
+        // add type implement type
+        if ("List".equals(typeName)) {
+            // add implement type
+            result.add("java.util.ArrayList");
+        }
+        if ("Map".equals(typeName)) {
+            // add implement type
+            result.add("java.util.HashMap");
+        }
+
+        // get generic typeNames
+        List<String> genericTypeNames = getGenericTypeNames(unit, type);
+
+        // add generic type
+        result.addAll(genericTypeNames);
+
+        return result;
     }
 
     public static ClassOrInterfaceType getClassOrInterfaceType(Type type) {
@@ -106,6 +148,13 @@ public class AstUtils {
                 return classTypeName.equals(importClassTypeName);
             })
             .findFirst();
+    }
+
+    public static Optional<String> findImportName(
+        CompilationUnit unit,
+        String classTypeName
+    ) {
+        return findImportDeclaration(unit, classTypeName).map(NodeWithName::getNameAsString);
     }
 
     private static String getDefaultValue(Type type) {

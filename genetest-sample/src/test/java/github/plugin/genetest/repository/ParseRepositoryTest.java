@@ -6,6 +6,11 @@ import org.junit.Test;
 import org.junit.Assert;
 import java.util.Map;
 import java.util.HashMap;
+import jdk.nashorn.internal.runtime.arrays.ArrayIndex;
+import github.plugin.genetest.App;
+import java.util.List;
+import java.util.ArrayList;
+import java.text.Format;
 
 public class ParseRepositoryTest {
 
@@ -44,7 +49,7 @@ public class ParseRepositoryTest {
     @Test()
     public void test_select_by_id_branch_if_options_is_empty() {
         // TODO given
-        Map<String, Object> options = new HashMap<>();
+        Map<String, Map<ArrayIndex, App>> options = new HashMap<>();
         // when
         Object actual = parseRepository.selectById(options);
         // TODO then
@@ -55,7 +60,29 @@ public class ParseRepositoryTest {
     @Test()
     public void test_select_by_id_branch_else_options_is_empty() {
         // TODO given
-        Map<String, Object> options = new HashMap<>();
+        Map<String, Map<ArrayIndex, App>> options = new HashMap<>();
+        // when
+        Object actual = parseRepository.selectById(options);
+        // TODO then
+        Object expect = null;
+        Assert.assertEquals(expect, actual);
+    }
+
+    @Test()
+    public void test_select_by_id_branch_if_options_is_empty2() {
+        // TODO given
+        List<Format> options = new ArrayList<>();
+        // when
+        Object actual = parseRepository.selectById(options);
+        // TODO then
+        Object expect = null;
+        Assert.assertEquals(expect, actual);
+    }
+
+    @Test()
+    public void test_select_by_id_branch_else_options_is_empty2() {
+        // TODO given
+        List<Format> options = new ArrayList<>();
         // when
         Object actual = parseRepository.selectById(options);
         // TODO then

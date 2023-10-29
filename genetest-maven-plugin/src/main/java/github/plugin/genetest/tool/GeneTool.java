@@ -190,8 +190,6 @@ public class GeneTool {
         });
     }
 
-
-
     private void createIfNotExistsSetUpMethod(
         CompilationUnit srcUnit,
         ClassOrInterfaceDeclaration testClass
@@ -493,28 +491,18 @@ public class GeneTool {
             Type fieldType = parameter.getType();
 
             // create import
-            String fieldTypeName = AstUtils.getType(fieldType);
-            if ("List".equals(fieldTypeName)) {
-                String importName1 = "java.util.List";
-                String importName2 = "java.util.ArrayList";
-                createImport(testUnit, importName1, importName2);
+            List<String> importNames = AstUtils.getImportNames(srcUnit, fieldType);
+            for (String importName : importNames) {
+                createImport(testUnit, importName);
             }
-            if ("Map".equals(fieldTypeName)) {
-                String importName1 = "java.util.Map";
-                String importName2 = "java.util.HashMap";
-                createImport(testUnit, importName1, importName2);
-            }
-
-            AstUtils.findImportDeclaration(srcUnit, fieldTypeName).ifPresent(importDeclaration ->
-                createImport(testUnit, AstUtils.getName(importDeclaration))
-            );
 
             // create given statement
             String fieldName = AstUtils.getName(parameter);
             VariableDeclarationExpr variableExpr = AstUtils.createVariableDeclarationExpr(fieldType, fieldName);
-
             ExpressionStmt expressionStmt = AstUtils.createExpressionStmt(variableExpr);
+
             if (i == 0) {
+                // first line add comment
                 String comment = " TODO given";
                 variableExpr.setLineComment(comment);
             }
@@ -613,7 +601,7 @@ public class GeneTool {
     private String typeJoinStr(NodeList<Parameter> parameters) {
         StringJoiner joiner = new StringJoiner(", ");
         for (Parameter param : parameters) {
-            joiner.add(AstUtils.getType(param.getType()) + ".class");
+            joiner.add(AstUtils.getTypeName(param.getType()) + ".class");
         }
         return joiner.toString();
     }
