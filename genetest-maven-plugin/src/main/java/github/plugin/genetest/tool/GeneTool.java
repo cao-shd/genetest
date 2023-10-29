@@ -746,7 +746,6 @@ public class GeneTool {
         // add mock annotation
         AnnotationExpr annotation = AstUtils.createAnnotationExpr(testClass, annotationName);
         AstUtils.addAnnotation(field, annotation);
-        info("create field annotation: " + annotationName);
 
         // print log
         info("create field: " + fieldName);
