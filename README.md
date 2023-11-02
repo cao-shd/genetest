@@ -24,44 +24,35 @@ mvn install
 
 ## 使用
 
-* 在 pom.xml 引用插件。示例：[genetest-sample/pom.xml](./genetest-sample/pom.xml)。
-```xml
-<!-- project > build > plugins -->
-<plugin>
-    <groupId>github.plugin</groupId>
-    <artifactId>genetest-maven-plugin</artifactId>
-    <version>1.0</version>
-</plugin>
-```
 * 运行命令生成测试文件。
 
 ```shell
 cd genetest-sample
 
 # 查看插件使用方法
-mvn genetest:help
+mvn github.plugin:genetest-maven-plugin:1.0:help
 
 # 常用生成测试代码命令
 # 生成工程源码的全部测试代码 如果存在 则追加测试类到已有文件
-mvn genetest:gene
+mvn github.plugin:genetest-maven-plugin:1.0:gene
 
 # 生成工程源码的全部测试代码 使用 mockito 作为 mock 工具
-mvn genetest:gene -Dmock=mockito
+mvn github.plugin:genetest-maven-plugin:1.0:gene -Dmock=mockito
 
 # 生成工程源码的全部测试代码 如果存在 则替换原有文件 重新生成
-mvn genetest:gene -Dmode=overwrite
+mvn github.plugin:genetest-maven-plugin:1.0:gene -Dmode=overwrite
 
 # 生成工程源码的全部测试代码 指定生成文件名后缀
-mvn genetest:gene -Dsuffix=AutoTest
+mvn github.plugin:genetest-maven-plugin:1.0:gene -Dsuffix=AutoTest
 
 # 生成工程源码的指定包下面的测试代码 如果存在 则追加测试类到已有文件
-mvn genetest:gene -Dincludes=github.plugin.genetest.model
+mvn github.plugin:genetest-maven-plugin:1.0:gene -Dincludes="github.plugin.genetest.model"
 
 # 生成工程源码的包含指定类的测试代码 如果存在 则追加测试类到已有文件
-mvn genetest:gene -Dincludes=model.github.plugin.genetest.ParseModel
+mvn github.plugin:genetest-maven-plugin:1.0:gene -Dincludes="github.plugin.genetest.model.ParseModel"
 
 # 生成工程源码的指定包内并且排除指定类的测试代码 如果存在 则追加测试类到已有文件
-mvn genetest:gene -Dincludes=github.plugin.genetest.model -Dexcludes=github.plugin.genetest.ParseModel2
+mvn github.plugin:genetest-maven-plugin:1.0:gene -Dincludes="github.plugin.genetest.model" -Dexcludes="github.plugin.genetest.model.ParseModel2"
 ```
 ## 优化
 * 使用 mockito 时 可以自动生成 mock 语句
